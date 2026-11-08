@@ -239,25 +239,43 @@ function summarize(project) {
 
 // src/handlers/elements.ts
 var getElementById = (body) => {
-  const id = body.id;
+  const id = body._id;
   if (typeof id !== "string" || id.length === 0) {
-    return { success: false, error: "Required field 'id' (string) missing" };
+    return {
+      success: false,
+      error: "Required field 'id' (string) missing"
+    };
   }
   const elem = app.repository.get(id);
   if (!elem) {
-    return { success: false, error: `Element not found: ${id}` };
+    return {
+      success: false,
+      error: `Element not found: ${id}`
+    };
   }
-  return { success: true, data: shallow(elem) };
+  return {
+    success: true,
+    data: shallow(elem)
+  };
 };
 var findElements = (body) => {
   const typeName = typeof body.type === "string" ? body.type : null;
   const nameFilter = typeof body.name === "string" ? body.name : null;
   try {
     const pool = typeName ? app.repository.getInstancesOf(typeName) : app.repository.findAll(() => true);
-    const filtered = nameFilter ? pool.filter((e) => e.name === nameFilter) : pool;
-    return { success: true, data: { count: filtered.length, elements: filtered.map(shallow) } };
+    const filtered = nameFilter ? pool.filter((element) => element.name === nameFilter) : pool;
+    return {
+      success: true,
+      data: {
+        count: filtered.length,
+        elements: filtered.map(shallow)
+      }
+    };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err)
+    };
   }
 };
 var createElement = (body) => {
@@ -265,111 +283,45 @@ var createElement = (body) => {
   const parentId = body.parentId;
   const name = typeof body.name === "string" ? body.name : void 0;
   if (typeof typeName !== "string" || typeName.length === 0) {
-    return { success: false, error: "Required field 'type' (string) missing, e.g. 'UMLClass'" };
+    return {
+      success: false,
+      error: "Required field 'type' (string) missing, e.g. 'UMLClass'"
+    };
   }
   if (typeof parentId !== "string" || parentId.length === 0) {
-    return { success: false, error: "Required field 'parentId' (string) missing" };
+    return {
+      success: false,
+      error: "Required field 'parentId' (string) missing"
+    };
   }
   const parent = app.repository.get(parentId);
   if (!parent) {
-    return { success: false, error: `Parent element not found: ${parentId}` };
+    return {
+      success: false,
+      error: `Parent element not found: ${parentId}`
+    };
   }
   try {
     const elem = app.factory.createModel({
       id: typeName,
       parent,
       ...name !== void 0 && {
-        modelInitializer: (m) => {
-          m.name = name;
+        modelInitializer: (model) => {
+          model.name = name;
         }
       }
     });
-    return { success: true, data: shallow(elem) };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
-  }
-};
-var updateElement = (body) => {
-  const id = body.id;
-  const field = body.field;
-  const value = body.value;
-  if (typeof id !== "string" || id.length === 0) {
-    return { success: false, error: "Required field 'id' missing" };
-  }
-  if (typeof field !== "string" || field.length === 0) {
-    return { success: false, error: "Required field 'field' missing" };
-  }
-  const elem = app.repository.get(id);
-  if (!elem) {
-    return { success: false, error: `Element not found: ${id}` };
-  }
-  try {
-    app.engine.setProperty(elem, field, value);
-    return { success: true, data: shallow(elem) };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
-  }
-};
-var deleteElement = (body) => {
-  const id = body.id;
-  if (typeof id !== "string" || id.length === 0) {
-    return { success: false, error: "Required field 'id' missing" };
-  }
-  const elem = app.repository.get(id);
-  if (!elem) {
-    return { success: false, error: `Element not found: ${id}` };
-  }
-  try {
-    const { models, views } = collectDeletionTargets(elem);
-    app.engine.deleteElements(models, views);
     return {
       success: true,
-      data: {
-        deleted: id,
-        models_deleted: models.length,
-        views_deleted: views.length
-      }
+      data: shallow(elem)
     };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err)
+    };
   }
 };
-function collectDeletionTargets(root) {
-  const seen = /* @__PURE__ */ new Set();
-  const models = [];
-  const views = [];
-  const stack = [root];
-  while (stack.length) {
-    const e = stack.pop();
-    const eid = typeof e._id === "string" ? e._id : "";
-    if (!eid || seen.has(eid)) continue;
-    seen.add(eid);
-    if (isView(e)) {
-      views.push(e);
-    } else {
-      models.push(e);
-    }
-    const owned = Array.isArray(e.ownedElements) ? e.ownedElements : [];
-    for (const child of owned) stack.push(child);
-    const ownedViews = Array.isArray(e.ownedViews) ? e.ownedViews : [];
-    for (const v of ownedViews) stack.push(v);
-    const subViews = Array.isArray(e.subViews) ? e.subViews : [];
-    for (const v of subViews) stack.push(v);
-    try {
-      const repo = app.repository;
-      if (repo.getViewsOf) for (const v of repo.getViewsOf(e) ?? []) stack.push(v);
-      if (repo.getEdgeViewsOf) for (const v of repo.getEdgeViewsOf(e) ?? []) stack.push(v);
-    } catch {
-    }
-  }
-  return { models, views };
-}
-function isView(e) {
-  if (e.model && typeof e.model === "object") return true;
-  const ctor = e.constructor;
-  const name = ctor?.name ?? "";
-  return name.endsWith("View") || name === "Shape" || name === "Edge";
-}
 var createElementWithView = (body) => {
   const typeName = body.type;
   const parentId = body.parentId;
@@ -380,39 +332,197 @@ var createElementWithView = (body) => {
   const x2 = typeof body.x2 === "number" ? body.x2 : x1 + 100;
   const y2 = typeof body.y2 === "number" ? body.y2 : y1 + 50;
   if (typeof typeName !== "string" || typeName.length === 0) {
-    return { success: false, error: "Required field 'type' missing (e.g. 'UMLUseCase', 'UMLActor', 'UMLAction')" };
+    return {
+      success: false,
+      error: "Required field 'type' missing"
+    };
   }
   if (typeof parentId !== "string" || parentId.length === 0) {
-    return { success: false, error: "Required field 'parentId' missing" };
+    return {
+      success: false,
+      error: "Required field 'parentId' missing"
+    };
   }
   if (typeof diagramId !== "string" || diagramId.length === 0) {
-    return { success: false, error: "Required field 'diagramId' missing" };
+    return {
+      success: false,
+      error: "Required field 'diagramId' missing"
+    };
   }
   const parent = app.repository.get(parentId);
-  if (!parent) return { success: false, error: `Parent not found: ${parentId}` };
   const diagram = app.repository.get(diagramId);
-  if (!diagram) return { success: false, error: `Diagram not found: ${diagramId}` };
+  if (!parent) {
+    return {
+      success: false,
+      error: `Parent not found: ${parentId}`
+    };
+  }
+  if (!diagram) {
+    return {
+      success: false,
+      error: `Diagram not found: ${diagramId}`
+    };
+  }
   try {
     const factory = app.factory;
-    const options = { x1, y1, x2, y2 };
+    const options = {
+      id: typeName,
+      parent,
+      diagram,
+      x1,
+      y1,
+      x2,
+      y2
+    };
     if (name !== void 0) {
-      options.modelInitializer = (m) => {
-        m.name = name;
+      options.modelInitializer = (model2) => {
+        model2.name = name;
       };
     }
-    const view = factory.createModelAndView(typeName, parent, diagram, options);
-    const model = view.model;
+    const view = factory.createModelAndView(options);
+    if (!view) {
+      return {
+        success: false,
+        error: `StarUML could not create ${typeName}`
+      };
+    }
+    const model = view.model && typeof view.model === "object" ? view.model : null;
     return {
       success: true,
       data: {
-        view: { _id: view._id },
-        model: model ? { _id: model._id, name: model.name } : null
+        view: {
+          _id: view._id
+        },
+        model: model ? {
+          _id: model._id,
+          name: model.name
+        } : null
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+};
+var updateElement = (body) => {
+  const id = body.id;
+  const field = body.field;
+  const value = body.value;
+  if (typeof id !== "string" || id.length === 0) {
+    return {
+      success: false,
+      error: "Required field 'id' missing"
+    };
+  }
+  if (typeof field !== "string" || field.length === 0) {
+    return {
+      success: false,
+      error: "Required field 'field' missing"
+    };
+  }
+  const elem = app.repository.get(id);
+  if (!elem) {
+    return {
+      success: false,
+      error: `Element not found: ${id}`
+    };
+  }
+  try {
+    app.engine.setProperty(elem, field, value);
+    return {
+      success: true,
+      data: shallow(elem)
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err)
+    };
+  }
+};
+var deleteElement = (body) => {
+  const id = body.id;
+  if (typeof id !== "string" || id.length === 0) {
+    return {
+      success: false,
+      error: "Required field 'id' missing"
+    };
+  }
+  const elem = app.repository.get(id);
+  if (!elem) {
+    return {
+      success: false,
+      error: `Element not found: ${id}`
+    };
+  }
+  try {
+    const { models, views } = collectDeletionTargets(
+      elem
+    );
+    app.engine.deleteElements(models, views);
+    return {
+      success: true,
+      data: {
+        deleted: id,
+        models_deleted: models.length,
+        views_deleted: views.length
       }
     };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err)
+    };
   }
 };
+function collectDeletionTargets(root) {
+  const seen = /* @__PURE__ */ new Set();
+  const models = [];
+  const views = [];
+  const stack = [root];
+  while (stack.length) {
+    const element = stack.pop();
+    const elementId = typeof element._id === "string" ? element._id : "";
+    if (!elementId || seen.has(elementId)) continue;
+    seen.add(elementId);
+    if (isView(element)) {
+      views.push(element);
+    } else {
+      models.push(element);
+    }
+    const owned = Array.isArray(element.ownedElements) ? element.ownedElements : [];
+    for (const child of owned) stack.push(child);
+    const ownedViews = Array.isArray(element.ownedViews) ? element.ownedViews : [];
+    for (const view of ownedViews) stack.push(view);
+    const subViews = Array.isArray(element.subViews) ? element.subViews : [];
+    for (const view of subViews) stack.push(view);
+    try {
+      const repo = app.repository;
+      if (repo.getViewsOf) {
+        for (const view of repo.getViewsOf(element) ?? []) {
+          stack.push(view);
+        }
+      }
+      if (repo.getEdgeViewsOf) {
+        for (const view of repo.getEdgeViewsOf(element) ?? []) {
+          stack.push(view);
+        }
+      }
+    } catch {
+    }
+  }
+  return { models, views };
+}
+function isView(element) {
+  if (element.model && typeof element.model === "object") {
+    return true;
+  }
+  const ctor = element.constructor;
+  const name = ctor?.name ?? "";
+  return name.endsWith("View") || name === "Shape" || name === "Edge";
+}
 var createEdgeWithView = (body) => {
   const typeName = body.type;
   const parentId = body.parentId;
@@ -421,63 +531,120 @@ var createEdgeWithView = (body) => {
   const headViewId = body.headViewId;
   const name = typeof body.name === "string" ? body.name : void 0;
   if (typeof typeName !== "string" || typeName.length === 0) {
-    return { success: false, error: "Required field 'type' missing (e.g. 'UMLAssociation', 'UMLControlFlow')" };
+    return {
+      success: false,
+      error: "Required field 'type' missing (e.g. 'UMLAssociation', 'UMLControlFlow')"
+    };
   }
   if (typeof parentId !== "string" || parentId.length === 0) {
-    return { success: false, error: "Required field 'parentId' missing" };
+    return {
+      success: false,
+      error: "Required field 'parentId' missing"
+    };
   }
   if (typeof diagramId !== "string" || diagramId.length === 0) {
-    return { success: false, error: "Required field 'diagramId' missing" };
+    return {
+      success: false,
+      error: "Required field 'diagramId' missing"
+    };
   }
-  if (typeof tailViewId !== "string" || typeof headViewId !== "string") {
-    return { success: false, error: "Required fields 'tailViewId' and 'headViewId' missing" };
+  if (typeof tailViewId !== "string" || tailViewId.length === 0 || typeof headViewId !== "string" || headViewId.length === 0) {
+    return {
+      success: false,
+      error: "Required fields 'tailViewId' and 'headViewId' missing"
+    };
   }
   const parent = app.repository.get(parentId);
   const diagram = app.repository.get(diagramId);
   const tailView = app.repository.get(tailViewId);
   const headView = app.repository.get(headViewId);
-  if (!parent) return { success: false, error: `Parent not found: ${parentId}` };
-  if (!diagram) return { success: false, error: `Diagram not found: ${diagramId}` };
-  if (!tailView) return { success: false, error: `Tail view not found: ${tailViewId}` };
-  if (!headView) return { success: false, error: `Head view not found: ${headViewId}` };
+  if (!parent) {
+    return {
+      success: false,
+      error: `Parent not found: ${parentId}`
+    };
+  }
+  if (!diagram) {
+    return {
+      success: false,
+      error: `Diagram not found: ${diagramId}`
+    };
+  }
+  if (!tailView) {
+    return {
+      success: false,
+      error: `Tail view not found: ${tailViewId}`
+    };
+  }
+  if (!headView) {
+    return {
+      success: false,
+      error: `Head view not found: ${headViewId}`
+    };
+  }
   try {
     const factory = app.factory;
     const options = {
+      id: typeName,
+      parent,
+      diagram,
       tailView,
       headView,
       tailModel: tailView.model,
       headModel: headView.model
     };
     if (name !== void 0) {
-      options.modelInitializer = (m) => {
-        m.name = name;
+      options.modelInitializer = (model2) => {
+        model2.name = name;
       };
     }
-    const view = factory.createModelAndView(typeName, parent, diagram, options);
-    const model = view.model;
+    const view = factory.createModelAndView(options);
+    if (!view) {
+      return {
+        success: false,
+        error: `StarUML could not create edge ${typeName}`
+      };
+    }
+    const model = view.model && typeof view.model === "object" ? view.model : null;
     return {
       success: true,
       data: {
-        view: { _id: view._id },
-        model: model ? { _id: model._id, name: model.name } : null
+        view: {
+          _id: view._id
+        },
+        model: model ? {
+          _id: model._id,
+          name: model.name
+        } : null
       }
     };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
   }
 };
 function shallow(elem) {
   const out = {};
   for (const [key, val] of Object.entries(elem)) {
-    if (key.startsWith("_") && key !== "_id" && key !== "_parent") continue;
+    if (key.startsWith("_") && key !== "_id" && key !== "_parent") {
+      continue;
+    }
     if (val === null || val === void 0) {
       out[key] = val;
     } else if (Array.isArray(val)) {
       out[key] = val.map(
-        (item) => item && typeof item === "object" && "_id" in item ? { _id: item._id, name: item.name } : item
+        (item) => item && typeof item === "object" && "_id" in item ? {
+          _id: item._id,
+          name: item.name
+        } : item
       );
     } else if (typeof val === "object" && "_id" in val) {
-      out[key] = { _id: val._id, name: val.name };
+      out[key] = {
+        _id: val._id,
+        name: val.name
+      };
     } else {
       out[key] = val;
     }
