@@ -411,6 +411,8 @@ export const createEdgeWithView: Handler = (body) => {
   const tailViewId = body.tailViewId;
   const headViewId = body.headViewId;
   const name = typeof body.name === "string" ? body.name : undefined;
+  const points =
+  typeof body.points === "string" ? body.points : undefined;
 
   if (typeof typeName !== "string" || typeName.length === 0) {
     return {
@@ -495,6 +497,12 @@ export const createEdgeWithView: Handler = (body) => {
       tailModel: (tailView as Record<string, unknown>).model,
       headModel: (headView as Record<string, unknown>).model,
     };
+
+  if (points) {
+  options.viewInitializer = (view: Record<string, unknown>) => {
+    view.points = points;
+  };
+}
 
     if (name !== undefined) {
       options.modelInitializer = (model: Record<string, unknown>) => {
