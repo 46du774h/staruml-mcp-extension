@@ -530,7 +530,6 @@ var createEdgeWithView = (body) => {
   const tailViewId = body.tailViewId;
   const headViewId = body.headViewId;
   const name = typeof body.name === "string" ? body.name : void 0;
-  const points = typeof body.points === "string" ? body.points : void 0;
   if (typeof typeName !== "string" || typeName.length === 0) {
     return {
       success: false,
@@ -594,11 +593,6 @@ var createEdgeWithView = (body) => {
       tailModel: tailView.model,
       headModel: headView.model
     };
-    if (points) {
-      options.viewInitializer = (view2) => {
-        view2.points = points;
-      };
-    }
     if (name !== void 0) {
       options.modelInitializer = (model2) => {
         model2.name = name;
